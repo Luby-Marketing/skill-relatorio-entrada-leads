@@ -66,6 +66,7 @@ Leia a mensagem e o domínio do e-mail. Os formulários do site não gravam empr
 - **A qualificar**: mensagem vaga demais para decidir.
 - **Parceria**: empresa propondo parceria ou revenda.
 - **Fora do perfil**: currículo, pessoa física pedindo crédito ou conta (comum nas páginas da Finfy).
+- **Vendedor ou spam**: revista oferecendo "prêmio" ou matéria, venda de links ou serviços, mensagem sem contexto.
 
 Qualifique a **pessoa**, não a linha. A chave `pessoas` da consulta junta as linhas reais pelo e-mail; uma pessoa com várias linhas (formulário e agendamento, ou dois envios) recebe uma categoria só, decidida pela mensagem mais informativa entre as dela. Envio repetido não é motivo para "Fora do perfil": quem manda duas vezes é a mesma pessoa, contada uma vez.
 
@@ -77,7 +78,6 @@ A coluna `jornada` de `pessoas` diz se a pessoa **só preencheu formulário**, *
 - no resumo, uma linha com quantas pessoas fizeram as duas coisas e quem são;
 - na lista, na coluna Jornada, com as duas datas e a reunião no assunto;
 - na qualificação, citando a jornada ao lado do nome.
-- **Vendedor ou spam**: revista oferecendo "prêmio" ou matéria, venda de links ou serviços, mensagem sem contexto.
 
 ## Passo 5: entregar o documento
 
