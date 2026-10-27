@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: leads-ultimos-7-dias
+expected_outcome: |
+  Relatório de 20/10 a 27/10/2026 (BRT) cobrindo as cinco tabelas, com 14 contatos reais, origem de cada um, mídia paga zerada e Rendimento e Medbanking como oportunidades.

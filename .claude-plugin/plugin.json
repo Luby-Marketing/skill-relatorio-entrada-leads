@@ -1,0 +1,8 @@
+{
+  "name": "relatorio-entrada-leads",
+  "version": "1.0.0",
+  "description": "Relatório de entrada de leads da Luby (formulários do site, landings e reuniões agendadas) lido do Supabase nearsmart: separa testes, classifica a origem, qualifica e entrega um documento. Pergunta o período antes de rodar.",
+  "author": { "name": "Luby Marketing" },
+  "repository": "https://github.com/Luby-Marketing/skill-relatorio-entrada-leads",
+  "keywords": ["leads", "inbound", "supabase", "relatorio", "luby"]
+}
