@@ -1,12 +1,14 @@
 {
   "name": "skill-relatorio-entrada-leads",
-  "owner": { "name": "Luby Marketing" },
+  "owner": {
+    "name": "Luby Marketing"
+  },
   "plugins": [
     {
       "name": "relatorio-entrada-leads",
       "source": "./",
       "description": "Relatório de entrada de leads da Luby: volume, origem, qualificação e lista completa, por período escolhido.",
-      "version": "1.0.0"
+      "version": "1.1.0"
     }
   ]
 }

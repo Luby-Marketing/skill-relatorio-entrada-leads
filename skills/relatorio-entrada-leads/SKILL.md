@@ -65,25 +65,34 @@ Leia a mensagem e o domínio do e-mail. Os formulários do site não gravam empr
 - **Oportunidade**: empresa com necessidade de software, RFP, concorrência ou projeto. Inclua ideias em estágio inicial, sinalizando o estágio.
 - **A qualificar**: mensagem vaga demais para decidir.
 - **Parceria**: empresa propondo parceria ou revenda.
-- **Fora do perfil**: currículo, pessoa física pedindo crédito ou conta (comum nas páginas da Finfy), envio duplicado.
+- **Fora do perfil**: currículo, pessoa física pedindo crédito ou conta (comum nas páginas da Finfy).
 
-A mesma pessoa às vezes preenche o formulário e depois agenda, ou manda duas vezes. Cruze os e-mails das linhas reais: conte pessoas únicas no resumo, classifique a primeira linha pelo conteúdo e as seguintes como duplicadas, e cite no assunto quando o formulário virou agendamento.
+Qualifique a **pessoa**, não a linha. A chave `pessoas` da consulta junta as linhas reais pelo e-mail; uma pessoa com várias linhas (formulário e agendamento, ou dois envios) recebe uma categoria só, decidida pela mensagem mais informativa entre as dela. Envio repetido não é motivo para "Fora do perfil": quem manda duas vezes é a mesma pessoa, contada uma vez.
+
+## Passo 4b: jornada de cada pessoa
+
+A coluna `jornada` de `pessoas` diz se a pessoa **só preencheu formulário**, **só agendou** ou fez **formulário + agendamento**. Ela olha o histórico inteiro, não só o período: quem agendou em agosto e voltou pelo formulário em setembro aparece como "Formulário + agendamento", com as duas datas em `datas_formulario` e `datas_agendamento`.
+
+"Formulário + agendamento" é o sinal mais forte de interesse do relatório: a pessoa escreveu e depois reservou horário (ou o contrário). Nunca esconda isso numa marcação de "duplicado". Traga em três lugares:
+- no resumo, uma linha com quantas pessoas fizeram as duas coisas e quem são;
+- na lista, na coluna Jornada, com as duas datas e a reunião no assunto;
+- na qualificação, citando a jornada ao lado do nome.
 - **Vendedor ou spam**: revista oferecendo "prêmio" ou matéria, venda de links ou serviços, mensagem sem contexto.
 
 ## Passo 5: entregar o documento
 
 Crie um documento (Claude Docs; carregue a skill `docs` antes) chamado **"Entrada de leads: DD/MM a DD/MM/AAAA"**, em português, com horários em BRT. Seções, nesta ordem:
 
-1. **Resumo**: primeira frase com o número que importa (contatos reais e oportunidades no período). Depois, em tópicos curtos: total de linhas, testes, contatos reais e pessoas únicas, oportunidades e por onde vieram, reuniões marcadas, quantos vieram de mídia paga (diga "zero" se for zero) e qual tabela não teve lead real.
+1. **Resumo**: primeira frase com o número que importa (pessoas reais e oportunidades no período). Depois, em tópicos curtos: total de linhas, testes, linhas reais e pessoas únicas, oportunidades e por onde vieram, reuniões marcadas, quantas pessoas fizeram formulário + agendamento (com os nomes), quantos vieram de mídia paga (diga "zero" se for zero) e qual tabela não teve lead real.
 2. **Volume por tabela**: tabela com Tabela, Entrada, Mercado, Linhas, Testes e Reais, mais a linha de total. Abaixo, uma frase com a regra usada para identificar teste e os dias em que os testes se concentraram.
-3. **Origem dos leads reais**: tabela com Origem, Como foi identificada, Contatos, Oportunidades e O que chegou. Inclua a linha de mídia paga mesmo com zero, porque a ausência é informação. Abaixo, a contagem por página de entrada.
-4. **Qualificação**: tabela com Categoria, Contatos e Quem (empresa e o motivo em poucas palavras).
-5. **Lista completa**: um contato por linha, do mais recente ao mais antigo, com Data (BRT), Tabela, Nome, E-mail, Página de entrada, Origem, Categoria e Assunto (resumo da mensagem). Para agendamentos, ponha no assunto a data, a hora e o host da reunião. Depois, uma frase sobre o `crm_sync` dos contatos de formulário.
+3. **Origem dos leads reais**: tabela com Origem, Como foi identificada, Pessoas, Oportunidades e O que chegou (cada pessoa conta uma vez, pela origem do primeiro contato no período). Inclua a linha de mídia paga mesmo com zero, porque a ausência é informação. Abaixo, a contagem por página de entrada.
+4. **Qualificação**: tabela com Categoria, Pessoas e Quem (empresa e o motivo em poucas palavras).
+5. **Lista completa**: uma **pessoa** por linha, na ordem de `pessoas` (primeiro contato no período, do mais recente ao mais antigo), com Data (BRT, primeiro contato no período), Nome, E-mail, Jornada, Página de entrada, Origem, Categoria e Assunto (resumo da mensagem). A origem é a do primeiro contato dela no período. Quando houver agendamento, ponha no assunto a data, a hora e o host da reunião; quando houver formulário e agendamento, cite as duas datas. Se a pessoa tem mais de uma linha no período, diga quantas no assunto. Depois, uma frase sobre o `crm_sync` dos contatos de formulário.
 6. **Limitações dos dados**: o estado do rastreamento, a partir da chave `rastreamento` (última data com clique de anúncio e com UTM em cada tabela, em todo o histórico; se uma tabela que recebe tráfego pago está há semanas sem nenhum, diga a data e que isso indica campanha parada ou captura quebrada no formulário, e ponha esse alerta também no resumo); falta de primeiro toque (o `referrer` é só a página anterior, então "Site" pode esconder Google, LinkedIn ou e-mail); empresa e cargo vazios; as linhas de `testes_suspeitos` que parecem sondagem externa, com o `crm_sync` delas (se for `true`, recomende conferir se viraram contato no HubSpot); e o que não foi cruzado (HubSpot, agendamento × formulário).
 
 Se o período não tiver nenhum contato real, entregue mesmo assim: o resumo diz isso, a tabela de volume mostra os testes e as seções 3 a 5 viram uma frase cada.
 
-Antes de entregar, confira as contas: a soma por origem, a soma por categoria e o total da lista têm de bater com o total de contatos reais da tabela de volume.
+Antes de entregar, confira as contas: a soma por origem, a soma por categoria e o total da lista têm de bater com o número de pessoas únicas; a soma de `linhas_no_periodo` tem de bater com o total de linhas reais da tabela de volume.
 
 Se o Claude Docs não estiver disponível, entregue o mesmo conteúdo na resposta, em markdown.
 

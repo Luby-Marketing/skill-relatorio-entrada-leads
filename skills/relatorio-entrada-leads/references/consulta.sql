@@ -6,10 +6,14 @@
 --   __FIM__     último dia incluído   (ex.: 2026-10-27)
 -- O período vai de 00:00 do primeiro dia até 23:59:59 do último, no fuso de São Paulo.
 --
--- Devolve um JSON com quatro chaves:
+-- Devolve um JSON com cinco chaves:
 --   rastreamento      última data com clique de anúncio e com UTM em cada tabela, em todo o histórico
 --   totais            linhas, testes e reais por tabela
 --   testes_suspeitos  linhas de teste com cara de sondagem externa (para a seção de limitações)
+--   pessoas           uma linha por pessoa real do período (juntada por e-mail), com a jornada:
+--                     se ela já preencheu formulário, se agendou, as datas de cada um (em todo o
+--                     histórico, então um formulário de setembro aparece para quem agendou em outubro)
+--                     e quantas linhas ela tem no período
 --   reais             só as linhas reais, completas, da mais recente para a mais antiga
 -- As linhas de teste não vêm completas de propósito: num período com bateria de testes elas passam de 250
 -- e estouram o limite de saída da ferramenta.
@@ -72,6 +76,29 @@ f as (
   select * from base
   where created_at >= ('__INICIO__'::date)::timestamp at time zone 'America/Sao_Paulo'
     and created_at <  ('__FIM__'::date + 1)::timestamp at time zone 'America/Sao_Paulo'
+),
+historico as (
+  -- Tudo o que cada e-mail real já fez, em qualquer data
+  select lower(trim(email)) em,
+    count(*) filter (where tipo <> 'Agendamento') n_formularios,
+    count(*) filter (where tipo = 'Agendamento') n_agendamentos,
+    string_agg(distinct to_char(created_at at time zone 'America/Sao_Paulo','DD/MM/YYYY'), ', ')
+      filter (where tipo <> 'Agendamento') datas_formulario,
+    string_agg(distinct to_char(created_at at time zone 'America/Sao_Paulo','DD/MM/YYYY'), ', ')
+      filter (where tipo = 'Agendamento') datas_agendamento,
+    string_agg(reuniao, ' | ' order by created_at) filter (where tipo = 'Agendamento') reunioes
+  from base where not teste and coalesce(trim(email),'') <> ''
+  group by 1
+),
+pessoas as (
+  select lower(trim(f.email)) em,
+    (array_agg(f.nome order by f.created_at desc))[1] nome,
+    count(*) linhas_no_periodo,
+    string_agg(distinct f.tbl, ', ') tabelas_no_periodo,
+    to_char(min(f.created_at) at time zone 'America/Sao_Paulo','DD/MM HH24:MI') primeiro_contato_no_periodo,
+    min(f.created_at) primeiro_ts
+  from f where not teste and coalesce(trim(f.email),'') <> ''
+  group by 1
 )
 select json_build_object(
   'periodo', json_build_object('inicio','__INICIO__','fim','__FIM__'),
@@ -90,6 +117,15 @@ select json_build_object(
      select tbl, quando_brt, nome, email, pagina, crm_sync from f
      where teste and (nome like '{{%' or email ilike '%yopmail%' or email ilike 'recon%'
                       or email ilike '%example.com' or email = 'test@test.com')) s),
+  'pessoas', (select json_agg(p) from (
+     select pe.nome, pe.em email,
+       case when h.n_formularios > 0 and h.n_agendamentos > 0 then 'Formulário + agendamento'
+            when h.n_agendamentos > 0 then 'Só agendamento'
+            else 'Só formulário' end jornada,
+       h.datas_formulario, h.datas_agendamento, h.reunioes,
+       pe.linhas_no_periodo, pe.tabelas_no_periodo, pe.primeiro_contato_no_periodo
+     from pessoas pe join historico h on h.em = pe.em
+     order by pe.primeiro_ts desc) p),
   'reais', (select json_agg(r order by created_at desc) from (
      select * from f where not teste) r)
 );

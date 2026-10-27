@@ -12,7 +12,9 @@ Skill do time de Growth da Luby. Responde "quantos leads entraram, de onde viera
 
 ## O que entrega
 
-Um documento com seis seções: resumo, volume por tabela (com testes separados dos contatos reais), origem de cada lead, qualificação (oportunidade, a qualificar, parceria, fora do perfil, vendedor ou spam), lista completa e limitações dos dados. As limitações incluem a última data em que cada tabela recebeu clique de anúncio e UTM, para pegar campanha parada ou captura quebrada.
+Um documento com seis seções: resumo, volume por tabela (com testes separados dos contatos reais), origem de cada lead, qualificação (oportunidade, a qualificar, parceria, fora do perfil, vendedor ou spam), lista completa e limitações dos dados.
+
+O relatório conta **pessoas**, não linhas: quem preencheu o formulário e também agendou aparece uma vez, com a jornada "Formulário + agendamento" e as duas datas, olhando o histórico inteiro. Esse é o sinal de interesse mais forte e vem destacado no resumo. As limitações incluem a última data em que cada tabela recebeu clique de anúncio e UTM, para pegar campanha parada ou captura quebrada.
 
 A skill é **só leitura**: não altera o banco, o HubSpot nem nada.
 
@@ -56,7 +58,7 @@ skills/relatorio-entrada-leads/
 
 ## Testes
 
-Três casos em `skills/relatorio-entrada-leads/evals/`, rodados em 27/10/2026 com e sem a skill:
+Três casos em `skills/relatorio-entrada-leads/evals/`, rodados em 27/10/2026 com e sem a skill (versão 1.0.0):
 
 | Caso | Com a skill | Sem a skill |
 |---|---|---|
