@@ -22,6 +22,13 @@ Desde a versão 1.2.0, a skill lê o `raw_payload` dos leads:
 - **Teste por duas regras.** Padrão de texto (e-mail, nome, página) ou marca no payload (`is_test` etc.). Muitos testes chegam com `is_test = false`, então as duas se somam.
 - **Qualificação com o que o formulário gravou**: empresa, cargo, setor, site ou perfil (agents.luby.co e legacybusters.com se distinguem pelo `profile`), sinais de produto (X-Ray, calculadora, agentes, ebook) e aparelho.
 
+A versão 1.3.0 traz mais do `raw_payload`, sempre em strings curtas:
+
+- **Páginas vistas antes do lead** (cases, serviços, preço, blog, sobre, carreiras etc.) e a **página de entrada** da visita que converteu.
+- **Campanha de cada visita** no caminho (ex.: "google/cpc (agents_br) → direct").
+- **Valores da calculadora** (legado do legacybusters, potencial da Finfy, agents) em vez de só "calculadora preenchida".
+- **Idioma e fuso do navegador**, com um aviso quando o fuso não combina com o mercado (UTC, fora da América, fora do Brasil num site BR). É só um sinal para conferir à mão: a regra de teste e os totais não mudam.
+
 Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
 
 A skill é **só leitura**: não altera o banco, o HubSpot nem nada.

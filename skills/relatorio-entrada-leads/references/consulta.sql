@@ -14,6 +14,21 @@
 --                     (em todo o histórico) e a jornada de navegação (primeiro toque mais antigo, último
 --                     toque do lead mais recente, visitas)
 --   reais             só as linhas reais, compactas, da mais recente para a mais antiga
+--   cobertura         por tabela, quantas linhas reais têm cada campo novo da 1.3.0 (páginas, entrada,
+--                     calculadora, idioma/fuso e aviso de fuso)
+--
+-- Campos das linhas reais tirados do raw_payload (strings curtas, omitidos quando vazios):
+--   paginas      páginas vistas antes do lead (journey.pages: caminhos sem domínio), sem home, contato e
+--                páginas legais, deduplicadas, com rótulo para cases, blog, preço, sobre, carreiras,
+--                parceiros, setor e material; até ~120 caracteres, "+N" quando sobra
+--   entrada      página de entrada da visita que converteu (a sessão mais recente de journey.sessions)
+--                e, se for outra, a do último toque (journey.last.landing_page)
+--   caminho      as últimas visitas como fonte/mídia (campanha)
+--   produto      inclui os valores da calculadora (raw_payload.calculator e os campos da calculadora do
+--                agents: hourCost, volume, autonomy, hoursMonth) em vez de só "calculadora preenchida"
+--   idioma_fuso  raw_payload.language e o fuso do navegador (raw_payload.timezone ou a coluna timezone;
+--                no agendamento o fuso é o da reunião e já vem em reuniao, então fica de fora)
+--   aviso_fuso   fuso que não combina com o mercado (só aviso para conferência; não muda a regra de teste)
 --
 -- Teste = regra de texto (e-mail, nome, página) OU marca no raw_payload (is_test, integration_test ou
 -- smoke_test = true, ou as chaves teste/sonda preenchidas). As duas se somam: há testes feitos sem
@@ -128,15 +143,49 @@ fr as (
     case when jsonb_typeof(jr->'pages') = 'array' then jsonb_array_length(jr->'pages') end paginas_vistas,
     case when primeiro_ts_jornada is not null
          then round((extract(epoch from created_at - primeiro_ts_jornada::timestamptz) / 86400)::numeric, 1) end dias_ate_lead,
-    -- caminho das últimas visitas guardadas (sessions[] tem só as mais recentes): repetições viram ×N
-    (select case when (jr->>'session_count')::int > max(n_total) then '(+'||((jr->>'session_count')::int - max(n_total))||') ' else '' end
+    -- caminho das últimas visitas guardadas (sessions[] tem só as mais recentes): fonte/mídia (campanha);
+    -- repetições viram ×N
+    left((select case when (jr->>'session_count')::int > max(n_total) then '(+'||((jr->>'session_count')::int - max(n_total))||') ' else '' end
             || string_agg(lbl || case when qt > 1 then ' ×'||qt else '' end, ' → ' order by o)
      from (select lbl, min(o) o, count(*) qt, max(n_total) n_total
            from (select o, lbl, o - row_number() over (partition by lbl order by o) g, count(*) over () n_total
                  from jsonb_array_elements(case when jsonb_typeof(jr->'sessions') = 'array' then jr->'sessions' else '[]' end)
                       with ordinality s(v, o),
-                      lateral (select coalesce(nullif(v->>'source',''), 'direct') || coalesce('/'||nullif(v->>'medium',''), '') lbl) l) a
-           group by lbl, g) b) caminho,
+                      lateral (select coalesce(nullif(v->>'source',''), 'direct') || coalesce('/'||nullif(v->>'medium',''), '')
+                                      || coalesce(' ('||left(nullif(v->>'campaign',''),25)||')', '') lbl) l) a
+           group by lbl, g) b), 200) caminho,
+    -- páginas vistas (journey.pages, caminhos sem domínio), com rótulo e sem home/contato/legais
+    (select nullif(concat_ws(' ', string_agg(lbl, ' · ' order by o) filter (where cum <= 120),
+                             '+'||nullif(count(*) filter (where cum > 120), 0)), '')
+     from (select lbl, o, sum(length(lbl) + 3) over (order by o) cum
+           from (select lbl, min(o) o
+                 from (select o, case
+                          when pp ~ '/(cases?|cases-de-sucesso|portfolio)(/|$)'
+                            then case when slug ~ '^(cases?|cases-de-sucesso|portfolio)$' then 'cases' else 'case '||left(slug,30) end
+                          when pp ~ '/(blog|insights|artigos?|news)(/|$)'
+                            then case when slug ~ '^(blog|insights|artigos?|news)$' then 'blog' else 'blog '||left(slug,25) end
+                          when pp ~ '(pre[cç]os?|pricing|planos?|plans)(/|$)' then 'preço'
+                          when pp ~ '/(about|sobre|quem-somos)(/|$)' then 'sobre'
+                          when pp ~ '/(careers|carreiras|vagas|trabalhe)' then 'carreiras'
+                          when pp ~ '/(partners|parceir)' then 'parceiros'
+                          when pp ~ '/(industries|industrias)/.' then 'setor '||left(slug,25)
+                          when pp ~ '/(materiais|ebooks?|whitepaper|livro)' then 'material '||left(slug,30)
+                          else left(ltrim(pp,'/'),35) end lbl
+                       from jsonb_array_elements_text(case when jsonb_typeof(jr->'pages') = 'array' then jr->'pages' else '[]' end)
+                            with ordinality a(pg, o),
+                            lateral (select lower(regexp_replace(split_part(split_part(regexp_replace(pg,'^https?://[^/]+',''),'?',1),'#',1),'/+$','')) pp) b,
+                            lateral (select regexp_replace(pp,'^.*/','') slug) c
+                       where pp !~ '^(/(contato|contact|contact-us|fale-conosco|obrigado|thank-you|thanks|privacidade|privacy|privacy-policy|politica-de-privacidade|termos|terms|cookies))?$') x
+                 where lbl <> '' group by lbl) y) z) paginas,
+    -- página de entrada da visita que converteu (sessão mais recente) e a do último toque, se for outra
+    (select case when ent is null then 'último toque em '||lt
+                 when lt is distinct from ent and lt is not null then ent||' (último toque em '||lt||')'
+                 else ent end
+     from (select (select left(split_part(regexp_replace(nullif(v->>'landing_page',''),'^https?://[^/]+',''),'?',1),50)
+                   from jsonb_array_elements(case when jsonb_typeof(jr->'sessions') = 'array' then jr->'sessions' else '[]' end)
+                        with ordinality s(v, o)
+                   order by case when coalesce(v->>'n','') ~ '^[0-9]+$' then (v->>'n')::int end desc nulls last, o desc limit 1) ent,
+                  left(split_part(regexp_replace(nullif(jr->'last'->>'landing_page',''),'^https?://[^/]+',''),'?',1),50) lt) e) entrada,
     nullif(concat_ws(' · ',
       'empresa: '||coalesce(nullif(j->>'company',''), nullif(j->>'company_name',''), nullif(rp->>'company',''),
                             nullif(rp->>'empresa',''), nullif(rp->>'company_name','')),
@@ -156,7 +205,7 @@ fr as (
            then 'xray: '||coalesce(lower(nullif(rp->>'xray_move','')),'?')||coalesce(' · score '||nullif(rp->>'xray_score',''),'') end,
       case when coalesce(rp->>'yearlySavings','') ~ '^[0-9]+(\.[0-9]+)?$' and (rp->>'yearlySavings')::numeric > 0
            then 'economia R$ '||replace(to_char(round((rp->>'yearlySavings')::numeric),'FM999G999G999'),',','.')||'/ano' end,
-      case when jsonb_typeof(rp->'calculator') = 'object' and rp->'calculator' <> '{}' then 'calculadora preenchida' end,
+      calc,
       case when jsonb_typeof(rp->'catalogAgents') = 'array' and jsonb_array_length(rp->'catalogAgents') > 0
            then 'agentes: '||(select string_agg(e, ', ') from (select jsonb_array_elements_text(rp->'catalogAgents') e limit 3) z) end,
       'processo: '||nullif(rp->>'process',''),
@@ -165,11 +214,71 @@ fr as (
       'ebook: '||nullif(rp->>'ebook',''),
       'material: '||left(nullif(rp->>'asset',''),60),
       case when jsonb_typeof(rp->'saasbusters'->'stack') = 'array'
-           then 'saasbusters: '||jsonb_array_length(rp->'saasbusters'->'stack')||' ferramentas' end), ''), 160) produto,
+           then 'saasbusters: '||jsonb_array_length(rp->'saasbusters'->'stack')||' ferramentas' end), ''), 260) produto,
+    calc is not null tem_calc,
+    nullif(concat_ws(' · ', lang, tz), '') idioma_fuso,
+    case when tz is null then null
+         when tz ~* '^(utc|gmt|etc/)' then 'fuso UTC (navegador sem fuso, comum em robô)'
+         when tz !~ '^(America|Pacific/Honolulu)' then 'fuso fora da América'
+         when mercado = 'BR' and tz !~ '^America/(Sao_Paulo|Bahia|Fortaleza|Recife|Belem|Maceio|Araguaina|Santarem|Manaus|Cuiaba|Campo_Grande|Porto_Velho|Boa_Vista|Rio_Branco|Eirunepe|Noronha)$'
+           then 'fuso fora do Brasil'
+         when mercado = 'US' and tz ~ '^America/(Sao_Paulo|Bahia|Fortaleza|Recife|Belem|Maceio|Araguaina|Santarem|Manaus|Cuiaba|Campo_Grande|Porto_Velho|Boa_Vista|Rio_Branco|Eirunepe|Noronha)$'
+           then 'fuso do Brasil em site US' end aviso_fuso,
     (select case when ua ~* '(ipad|tablet)' then 'tablet' when ua ~* '(mobi|android|iphone)' then 'celular' else 'desktop' end
      from (select coalesce(nullif(rp->>'userAgent',''), nullif(rp->>'user_agent',''), nullif(j->>'user_agent','')) ua) z
      where ua is not null) aparelho
-  from f where not (teste_texto or teste_payload)
+  from f,
+    -- idioma e fuso do navegador (no agendamento, o timezone é o da reunião: fica de fora)
+    lateral (select coalesce(nullif(rp->>'language',''), nullif(rp->>'locale',''), nullif(rp->>'lang','')) lang,
+                    case when tbl <> 'agendamento_luby'
+                         then coalesce(nullif(rp->>'timezone',''), nullif(j->>'timezone','')) end tz) lz,
+    -- calculadoras: raw_payload.calculator (legado do legacybusters com chaves k-*, benchmark da Finfy com
+    -- score/inputs/scenarios, ou outra) e os campos soltos da calculadora do agents (hourCost etc.)
+    lateral (select nullif(concat_ws(' · ', calc_obj, calc_agents), '') calc
+      from (select case
+              when c ? 'k-cost' or c ? 'k-fte' then
+                'calc legado: '||(select string_agg(replace(t, '{}', case when m then '$'||fm else fm end), ', ' order by ord)
+                  from (values (1,'{} eng','k-fte',false), (2,'{}/eng/ano','k-cost',true), (3,'KTLO {}%','k-ktlo',false),
+                               (4,'licenças {}/ano','k-lic',true), (5,'queda {}h/ano','k-down',false), (6,'{}/h parado','k-hour',true),
+                               (7,'invest. {}','k-inv',true), (8,'−{}% de custo','k-red',false), (9,'{} meses','k-mo',false)) v(ord,t,k,m),
+                       lateral (select case when coalesce(c->>k,'') ~ '^-?[0-9]+(\.[0-9]+)?$' then (c->>k)::numeric end n) nn,
+                       lateral (select case when not m then regexp_replace(round(n,1)::text,'\.0$','')
+                                            when abs(n) >= 999500 then regexp_replace(round(n/1e6,1)::text,'\.0$','')||'M'
+                                            when abs(n) >= 1000 then round(n/1e3)::text||'k'
+                                            else regexp_replace(round(n,1)::text,'\.0$','') end fm) f2
+                  where n is not null)
+              when c ? 'score' or c ? 'scenarios' then
+                concat_ws(' · ',
+                  'calc '||coalesce(nullif(c->>'model',''),'score')||':'
+                    ||coalesce(' score '||nullif(coalesce(c->'score'->>'s', case when jsonb_typeof(c->'score') <> 'object' then c->>'score' end),''),'')
+                    ||coalesce(' ('||nullif(concat_ws(', ', nullif(c->'score'->>'cls',''), nullif(c->'score'->>'tier','')),'')||')',''),
+                  (select 'TPV '||cur||case when n >= 999500 then regexp_replace(round(n/1e6,1)::text,'\.0$','')||'M'
+                                            when n >= 1000 then round(n/1e3)::text||'k' else n::text end
+                   from (select case when coalesce(c->'inputs'->>'tpv','') ~ '^[0-9]+(\.[0-9]+)?$' then (c->'inputs'->>'tpv')::numeric end n) z
+                   where n > 0),
+                  (select 'cenários '||cur||string_agg(case when n >= 999500 then regexp_replace(round(n/1e6,1)::text,'\.0$','')||'M'
+                                                         when n >= 1000 then round(n/1e3)::text||'k' else round(n)::text end, '/' order by o)
+                   from jsonb_array_elements(case when jsonb_typeof(c->'scenarios') = 'array' then c->'scenarios' else '[]' end)
+                        with ordinality s(v, o),
+                        lateral (select case when coalesce(v->>'total','') ~ '^-?[0-9]+(\.[0-9]+)?$' then (v->>'total')::numeric end n) z
+                   where n is not null))
+              when c is not null then
+                'calculadora: '||(select string_agg(key||' '||left(value #>> '{}', 15), ', ')
+                                  from (select key, value from jsonb_each(c)
+                                        where jsonb_typeof(value) in ('number','string','boolean') limit 5) e)
+            end calc_obj,
+            nullif(concat_ws(', ',
+              case when coalesce(rp->>'hourCost','') ~ '^[0-9]+(\.[0-9]+)?$' and (rp->>'hourCost')::numeric > 0
+                   then 'custo-hora '||cur||regexp_replace(round((rp->>'hourCost')::numeric,1)::text,'\.0$','') end,
+              case when coalesce(rp->>'volume','') ~ '^[0-9]+(\.[0-9]+)?$' and (rp->>'volume')::numeric > 0
+                   then 'volume '||(rp->>'volume')||'/mês' end,
+              case when coalesce(rp->>'hoursMonth','') ~ '^[0-9]+(\.[0-9]+)?$' and (rp->>'hoursMonth')::numeric > 0
+                   then round((rp->>'hoursMonth')::numeric)||'h/mês' end,
+              case when coalesce(rp->>'autonomy','') !~ '^(0|false|)$' then 'autonomia '||left(rp->>'autonomy',20) end), '') calc_agents_v
+            from (select case when jsonb_typeof(rp->'calculator') = 'object' and rp->'calculator' <> '{}' then rp->'calculator' end c,
+                         case when mercado = 'US' then '$' else 'R$ ' end cur) cc) a,
+           lateral (select 'calculadora: '||calc_agents_v calc_agents) b) cz
+  where not (teste_texto or teste_payload)
 ),
 historico as (
   -- Tudo o que cada e-mail real já fez, em qualquer data
@@ -245,7 +354,13 @@ select json_build_object(
      select created_at ord, tbl, tipo, mercado, quando_brt, nome, email, pagina, referrer,
        nullif(concat_ws('/', utm_source, utm_medium, utm_campaign), '') utm,
        nullif(clique_pago, '') clique_pago, crm_sync, reuniao, msg,
-       primeiro_toque, ultimo_toque, clique_pago_ultimo, visitas, dias_ate_lead, caminho, paginas_vistas,
-       qualif, site_perfil, produto, aparelho
-     from fr) r)
+       primeiro_toque, ultimo_toque, clique_pago_ultimo, visitas, dias_ate_lead, entrada, caminho,
+       paginas_vistas, paginas, qualif, site_perfil, produto, aparelho, idioma_fuso, aviso_fuso
+     from fr) r),
+  -- quantas linhas reais têm cada campo novo da 1.3.0
+  'cobertura', (select json_agg(c) from (
+     select tbl, count(*) reais,
+       count(paginas) com_paginas, count(entrada) com_entrada, count(*) filter (where tem_calc) com_calculadora,
+       count(idioma_fuso) com_idioma_fuso, count(aviso_fuso) com_aviso_fuso
+     from fr group by tbl order by tbl) c)
 );
