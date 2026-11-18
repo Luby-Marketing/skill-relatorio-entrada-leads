@@ -14,7 +14,15 @@ Skill do time de Growth da Luby. Responde "quantos leads entraram, de onde viera
 
 Um documento com seis seções: resumo, volume por tabela (com testes separados dos contatos reais), origem de cada lead, qualificação (oportunidade, a qualificar, parceria, fora do perfil, vendedor ou spam), lista completa e limitações dos dados.
 
-O relatório conta **pessoas**, não linhas: quem preencheu o formulário e também agendou aparece uma vez, com a jornada "Formulário + agendamento" e as duas datas, olhando o histórico inteiro. Esse é o sinal de interesse mais forte e vem destacado no resumo. As limitações incluem a última data em que cada tabela recebeu clique de anúncio e UTM, para pegar campanha parada ou captura quebrada.
+O relatório conta **pessoas**, não linhas: quem preencheu o formulário e também agendou aparece uma vez, como "Formulário + agendamento" e com as duas datas, olhando o histórico inteiro. Esse é o sinal de interesse mais forte e vem destacado no resumo. As limitações incluem a última data em que cada tabela recebeu clique de anúncio e UTM, para pegar campanha parada ou captura quebrada.
+
+Desde a versão 1.2.0, a skill lê o `raw_payload` dos leads:
+
+- **Origem pelo último toque.** As colunas `utm_*` e `gclid` guardam o primeiro toque; o clique que levou ao lead está na jornada de navegação (`raw_payload.journey.last`, gravada desde 29/10/2026). Com jornada, a origem é o último toque, e o relatório mostra "chegou por X, converteu por Y" quando os dois diferem, com as visitas, os dias até o lead e o caminho (ex.: "google/cpc → direct ×2 → chatgpt.com"). Sem jornada, a origem sai das colunas, como antes.
+- **Teste por duas regras.** Padrão de texto (e-mail, nome, página) ou marca no payload (`is_test` etc.). Muitos testes chegam com `is_test = false`, então as duas se somam.
+- **Qualificação com o que o formulário gravou**: empresa, cargo, setor, site ou perfil (agents.luby.co e legacybusters.com se distinguem pelo `profile`), sinais de produto (X-Ray, calculadora, agentes, ebook) e aparelho.
+
+Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
 
 A skill é **só leitura**: não altera o banco, o HubSpot nem nada.
 
@@ -50,6 +58,7 @@ Ou adicione este repositório ao marketplace da organização.
 .claude-plugin/
   plugin.json          manifesto do plugin
   marketplace.json     permite adicionar este repositório como marketplace
+CHANGELOG.md           histórico de versões
 skills/relatorio-entrada-leads/
   SKILL.md             instruções da skill
   references/consulta.sql   consulta única, parametrizada por data
@@ -58,7 +67,7 @@ skills/relatorio-entrada-leads/
 
 ## Testes
 
-Três casos em `skills/relatorio-entrada-leads/evals/`, rodados em 27/10/2026 com e sem a skill (versão 1.0.0):
+Três casos em `skills/relatorio-entrada-leads/evals/`, rodados em 27/10/2026 com e sem a skill (versão 1.0.0). A versão 1.2.0 acrescentou um critério ao caso "Sem período informado" (cobertura da jornada), ainda não rodado:
 
 | Caso | Com a skill | Sem a skill |
 |---|---|---|
