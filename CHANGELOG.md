@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.3.0 (18/11/2026)
+
+Mais campos do `raw_payload` nas linhas reais, compactos e omitidos quando vazios. A regra de teste não mudou: os totais de reais por tabela são os mesmos da 1.2.0 (conferido em 11 a 17/11/2026 e em outubro/2026).
+
+- **`paginas`**: páginas vistas antes do lead (`journey.pages`, que guarda só o caminho, sem domínio), deduplicadas, sem home, contato e páginas legais, com rótulo para cases, blog, preço, sobre, carreiras, parceiros, setor e material; até ~120 caracteres, com "+N" quando sobra.
+- **`entrada`**: página de entrada da visita que converteu (a sessão mais recente de `journey.sessions`) e, se for outra, a do último toque (`journey.last.landing_page`).
+- **`caminho`** ganha a campanha de cada visita entre parênteses (`sessions[].campaign`) e passa a ter no máximo 200 caracteres.
+- **`produto`**: os valores da calculadora em vez de "calculadora preenchida": a calculadora de custo do legado do legacybusters (chaves `k-*` de `raw_payload.calculator`), a de potencial da Finfy (`score`, `inputs.tpv`, `scenarios`), os campos da calculadora do agents (`hourCost`, `volume`, `hoursMonth`, `autonomy`) e um resumo genérico para outro formato. O limite do campo passou de 160 para 260 caracteres.
+- **`idioma_fuso`** (`raw_payload.language` e `raw_payload.timezone` ou a coluna `timezone`; no agendamento o fuso é o da reunião e fica de fora) e **`aviso_fuso`** (UTC, fora da América, fora do Brasil num site BR, fuso do Brasil num site US). A SKILL.md usa o aviso só como sinal para conferência manual de robô ou lead fora do mercado.
+- Nova chave **`cobertura`**: por tabela, quantos reais têm páginas, entrada, calculadora, idioma/fuso e aviso de fuso.
+- SKILL.md: como ler os campos novos, uso na qualificação e na lista completa, cobertura nas limitações e o que tirar do select quando a saída de um mês não couber (`msg` e `caminho`, depois `paginas` e `entrada`).
+
 ## 1.2.0 (18/11/2026)
 
 A skill passa a ler o `raw_payload` dos leads.
